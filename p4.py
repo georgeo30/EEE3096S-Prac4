@@ -35,7 +35,6 @@ def menu():
 	
 	global end_of_game
 	global value
-	reset()
 
 	option = input("Slect an option:   H - View High Scores     P - Play Game       Q - Quit\n")
 	option = option.upper()
@@ -47,6 +46,8 @@ def menu():
 		display_scores(s_count, ss)
 	elif option == "P":
 		os.system('clear')
+		reset()
+
 		print("Starting a new round!")
 		print("Use the buttons on the Pi to make and submit your guess!")
 		print("Press and hold the guess button to cancel your game")
@@ -69,7 +70,7 @@ def menu():
 def reset():
 	global end_of_game
 	global user_guess
-	gloabl no_of_guesses
+	global no_of_guesses
 	end_of_game=None
 	user_guess=0
 	no_of_guesses=0
@@ -94,12 +95,12 @@ def setup():
 	GPIO.output(LED_value[0],0)
 	GPIO.output(LED_value[1],0)
 	GPIO.output(LED_value[2],0)
-
-
+#	eeprom.clear(4096)
+#	eeprom.write_byte(0,ord("0"))
 
     # Setup PWM channels - ACCURACY LED AND BUZZER ARE PWM COMPONENTS - 32, 33
 	GPIO.setup(LED_accuracy,GPIO.OUT)
-	PWM_LED=GPIO.PWM(LED_accuracy,100)
+	PWM_LED=GPIO.PWM(LED_accuracy,200)
 	GPIO.setup(buzzer,GPIO.OUT)
 	PWM_Buzzer=GPIO.PWM(buzzer,100)
     # Setup debouncing and callbacks - 16, 18 2 switches
@@ -124,8 +125,8 @@ def fetch_scores():
 	for score in range(int(score_count)):
 		#reading a block at a timne and storing it in a list
 		score_list=eeprom.read_block(score+1,4)
-		score_dict[chr(score_list[0])+chr(score_list[1])+chr(score_list[2])]=int(chr(score_list[3]))
-
+#		print(score_list,"integer")
+		score_dict[str(chr(score_list[0]))+str(chr(score_list[1]))+str(chr(score_list[2]))]=int(str(chr(score_list[3])))
     # return back thedictionary
 	return score_dict
 	#, scores
@@ -144,7 +145,7 @@ def save_scores(score_dict):
 		i=i+1
 		eeprom.write_block(i,[ord(key[0]),ord(key[1]),ord(key[2]),ord(str(score_dict[key]))])
 	eeprom.write_byte(0,ord(str(len(score_dict))))
-	#print(fetch_scores())
+	print("written")
 # Generate guess number
 def generate_number():
     return random.randint(0, pow(2, 3)-1)
@@ -188,6 +189,7 @@ def btn_increase_pressed(channel):
 
 
 def input_name():
+	global no_of_guesses
 	PWM_Buzzer.stop()
 
 	
@@ -196,11 +198,18 @@ def input_name():
 	while(len(name)!=3):
 		print("Name Must be 3 or lesss letter")
 		name=input("Enter your 3 letter nickname: ")
-	print("Nice yo")		
-	score_dict=fetch_scores()
-	if(len(score_dict)<3):
+	score_dict={}		
+	if(int(chr(eeprom.read_byte(0)))==0):
 		score_dict[name]=no_of_guesses
+		eeprom.write_byte(0,ord(str(len(score_dict))))
+		save_scores(score_dict)
+	elif(int(chr(eeprom.read_byte(0)))<3):
+		score_dict=fetch_scores()
+		score_dict[name]=no_of_guesses
+		eeprom.write_byte(0,ord(str(len(score_dict))))
+		save_scores(score_dict)
 	else:
+		score_dict=fetch_scores()
 		max_key=max(score_dict,key=score_dict.get)
 		# if users guess fits in top 3 then add it and replace the smallest
 		if(score_dict[max_key]>no_of_guesses):
@@ -212,7 +221,7 @@ def input_name():
 			
 		else:
 			print("Try again to be in the top 3")
-	print(fetch_scores())
+#	print(fetch_scores())
 
 # Guess button
 def btn_guess_pressed(channel):
@@ -233,7 +242,6 @@ def btn_guess_pressed(channel):
     # Compare the actual value with the user value displayed on the LEDs
 	else:
 		if(value == user_guess):
-			reset()
 			print("Correct guess")
 			input_name()
 			end_of_game=True
